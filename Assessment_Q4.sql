@@ -37,7 +37,7 @@ WITH user_fixed AS (
     TIMESTAMPDIFF(
       MONTH,
       date_joined,
-      '2025‑04‑18'
+      (SELECT DATE(MAX(date_joined)) FROM users_customuser)
     ) AS tenure_months
   FROM users_customuser
 ),
@@ -84,7 +84,7 @@ SELECT
   /* Total # transactions = deposits + withdrawals                */
   SUM(
     COALESCE(s.total_deposits, 0) +
-    COALESCE(w.total_with,     0)
+    COALESCE(w.total_with, 0)
   ) AS total_transactions,
 
   /* ------------------------------------------------------------
@@ -93,11 +93,10 @@ SELECT
        × 12                            → annualize
        × average(profit per txn)       → blended margin
      ------------------------------------------------------------ */
-  ROUND((
+  COALESCE(ROUND(((
     SUM(
       COALESCE(s.total_deposits, 0) +
-      COALESCE(w.total_with,     0)
-    )
+      COALESCE(w.total_with, 0)) / u.tenure_months)
     * 12
     * ROUND(
         AVG(
@@ -107,7 +106,7 @@ SELECT
         ),
         2                             
       )
-  ), 2) AS estimated_clv             -- keep 2‑decimal precision
+  ), 2), 0) AS estimated_clv             -- keep 2‑decimal precision
 
 FROM user_fixed u
 LEFT JOIN savings_fixed s ON u.id = s.owner_id   -- may be NULL
