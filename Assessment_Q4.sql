@@ -67,7 +67,7 @@ with_fixed AS (
     COUNT(transaction_date) AS total_with,  -- # of withdrawals
 
     /* Profit proxy for withdrawals (same 0.1 % logic).           */
-    AVG(0.001 * amount_withdrawn) / 100 AS avg_profit_per_transaction_with
+    ((AVG(0.001 * amount_withdrawn)) / 100) AS avg_profit_per_transaction_with
   FROM withdrawals_withdrawal
   GROUP BY owner_id, plan_id               -- One row per user‑plan
 )
@@ -93,7 +93,7 @@ SELECT
        × 12                            → annualize
        × average(profit per txn)       → blended margin
      ------------------------------------------------------------ */
-  (
+  ROUND((
     SUM(
       COALESCE(s.total_deposits, 0) +
       COALESCE(w.total_with,     0)
@@ -105,12 +105,12 @@ SELECT
           + COALESCE(w.avg_profit_per_transaction_with, 0)
           ) / 2                       -- Blend savings & withdrawals
         ),
-        2                             -- keep 2‑decimal precision
+        2                             
       )
-  ) AS estimated_clv
+  ), 2) AS estimated_clv             -- keep 2‑decimal precision
 
 FROM user_fixed u
 LEFT JOIN savings_fixed s ON u.id = s.owner_id   -- may be NULL
-LEFT JOIN with_fixed    w ON u.id = w.owner_id   -- may be NULL
-GROUP BY
-  u.id, u.name, u.date_joined, u.tenure_months;  -- non‑aggregated cols
+LEFT JOIN with_fixed w ON u.id = w.owner_id   -- may be NULL
+GROUP BY u.id, u.name, u.date_joined, u.tenure_months  -- non‑aggregated cols
+ORDER BY estimated_clv DESC
